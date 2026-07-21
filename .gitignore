@@ -1,2 +1,8 @@
 # Visual Studio
 .vs/
+.env
+.npm
+
+# Clasp (/Google) user info
+.clasp.json
+.clasprc.json
