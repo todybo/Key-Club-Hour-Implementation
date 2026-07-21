@@ -6,9 +6,12 @@ The issue KcHA wanted to solve was several complaints from my Key Club Secretari
 
 ### Two main scripts
 Check our [wiki](https://github.com/todybo/Key-Club-Hour-Implementation/wiki) for a more indepth explaination of the functions of each script.
-- HourMain.js
-	- GiveHourList.js
-- GeneralMeetings.js
+- HourMain.js <br>
+This is the where the main functionality of the project is ran from, reads a list of names and searches for those names on another sheet then gives the person a set number.
+	- GiveHourList.js <br>
+	This script is filled with helper functions for HourMain.js
+- GeneralMeetings.js <br>
+This is functionally similar to HourMain.js except that it instead fills in true or false based on names found on the officer restricted sheet.
 
 ### Replicating/Contributing
-KcHA was developed directly on Google App Script however ported to GitHub through the use of [clasp](https://github.com/google/clasp) (using clasp allows for local development/testing using your own IDE). To create a usable copy of this project, download each .js file, changing the variable sheets ID's and prefered settings (located at the top of each script), then import each .js file into app script by pasting or by using clasp. Feel free to create branches to fix bugs or to improve the effectiveness/efficiency of this project.
+KcHA was developed directly on Google App Script however ported to GitHub through the use of [clasp](https://github.com/google/clasp) (using clasp allows for local development/testing using your own IDE). This project uses two seperate Google Sheets, an officer restricted and a public member hour tracker. To create a usable copy of this project, download each .js file, changing the variable sheets ID's and prefered settings (located at the top of each script), then import each .js file into app script by pasting or by using clasp. Feel free to create branches to fix bugs or to improve the effectiveness/efficiency of this project. Check the [wiki](https://github.com/todybo/Key-Club-Hour-Implementation/wiki) for more assistance 
