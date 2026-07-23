@@ -7,7 +7,7 @@ const sophSheet = moh.getSheetById(mohSettings.getRange("C7").getValue()); // So
 const juniorSheet = moh.getSheetById(mohSettings.getRange("D7").getValue()); // Juniors page of Master of Hours
 const seniorSheet = moh.getSheetById(mohSettings.getRange("E7").getValue()); // Seniors page of Master of Hours
 const ofSheet = moh.getSheetById(mohSettings.getRange("F7").getValue()); // Officers page of Master of Hours 
-const officerStartingCol = mohSettings.getRange("A11").getValue();
+const officerStartingCol = mohSettings.getRange("A11").getValue(); // officer starting column
 
 
 const hourSheets = [freshSheet, sophSheet, juniorSheet, seniorSheet, ofSheet];
