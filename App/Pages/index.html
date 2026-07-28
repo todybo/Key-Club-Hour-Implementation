@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>test window</title>
+</head>
+
+<body style="margin: 0px; padding: 0px;">
+  <div style="display: flex; background-color: #eeeeee; padding: 2px; height:4vh">
+    <header style="place-self:center; padding-inline:10px;">
+      title card
+    </header>
+  </div>
+
+  <div style="display:flex; place-content:center; height:95vh">
+    <div style="align-content:center">
+      <button command="show-modal" commandfor="modal">
+        poop
+      </button>
+    </div>
+  </div>
+</body>
+</html>
+
+<!-- modal popup (should move to component folder)-->
+<dialog id="modal">
+  <p>modal popup</p>
+  <button commandfor="modal" command="close">Close</button>
+</dialog>
+
+<!-- add functions for buttons -->
+<script>
+
+</script>

@@ -1,7 +1,28 @@
 # Visual Studio
 .vs/
-.env
 .npm
+
+# dotenv environment variable files
+.env
+.env.*
+!.env.example
+
+# Nuxt.js build / generate output
+.nuxt
+dist
+.output
+
+# pnpm
+.pnpm-store
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Logs
+logs
+*.log
+npm-debug.log*
 
 # Clasp (/Google) user info
 .clasp.json

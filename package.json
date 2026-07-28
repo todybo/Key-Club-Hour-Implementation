@@ -1,0 +1,38 @@
+{
+  "name": "key-club-hour-implementation",
+  "version": "1.0.0",
+  "description": "This is a tool meant to assist (Key Club) secretaries automate the manual process of inputing data into a large membership database table. <br> In greater depth, the Key Club Hour Automator (which will be refered to as KcHA from this point forward) takes several lists divided by member position (officer/member) then grade level provided in an officer restricted Google Sheet, then searches several sheets organized by member position (officer/member) then grade level in a seperate public Google Sheet for tracking membership hours, finally a new column is made on each sheet inside the public Google Sheet and for each name found on both Google Sheets is given hours based on the private Google Sheet.",
+  "homepage": "https://github.com/todybo/Key-Club-Hour-Implementation#readme",
+  "bugs": {
+    "url": "https://github.com/todybo/Key-Club-Hour-Implementation/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/todybo/Key-Club-Hour-Implementation.git"
+  },
+  "license": "ISC",
+  "author": "Cody",
+  "type": "commonjs",
+  "main": "App/main.js",
+  "scripts": {
+    "dev": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "electron-forge start",
+    "package": "electron-forge package",
+    "make": "electron-forge make"
+  },
+  "devDependencies": {
+    "@electron-forge/cli": "^7.11.2",
+    "@electron-forge/maker-deb": "^7.11.2",
+    "@electron-forge/maker-rpm": "^7.11.2",
+    "@electron-forge/maker-squirrel": "^7.11.2",
+    "@electron-forge/maker-zip": "^7.11.2",
+    "@electron-forge/plugin-auto-unpack-natives": "^7.11.2",
+    "@electron-forge/plugin-fuses": "^7.11.2",
+    "@electron/fuses": "^1.8.0",
+    "electron": "^43.2.0"
+  },
+  "dependencies": {
+    "electron-squirrel-startup": "^1.0.1"
+  }
+}
