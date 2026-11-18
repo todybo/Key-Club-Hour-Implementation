@@ -1,17 +1,17 @@
-const meetingSpreadsheet = SpreadsheetApp.openById(mohSettings.getRange("A13").getValue()); // General Meeting spreadsheet
-const meetingFreshmanSheet  = meetingSpreadsheet.getSheetById(mohSettings.getRange("B13").getValue());
-const meetingSophomoreSheet = meetingSpreadsheet.getSheetById(mohSettings.getRange("C13").getValue());
-const meetingJuniorSheet    = meetingSpreadsheet.getSheetById(mohSettings.getRange("D13").getValue());
-const meetingSeniorSheet    = meetingSpreadsheet.getSheetById(mohSettings.getRange("E13").getValue());
-const meetingOfficerSheet   = meetingSpreadsheet.getSheetById(mohSettings.getRange("F13").getValue());
+const meetingSpreadsheet = SpreadsheetApp.openById(settingsSheet.getRange("A13").getValue()); // General Meeting spreadsheet
+const meetingFreshmanSheet  = meetingSpreadsheet.getSheetById(settingsSheet.getRange("B13").getValue());
+const meetingSophomoreSheet = meetingSpreadsheet.getSheetById(settingsSheet.getRange("C13").getValue());
+const meetingJuniorSheet    = meetingSpreadsheet.getSheetById(settingsSheet.getRange("D13").getValue());
+const meetingSeniorSheet    = meetingSpreadsheet.getSheetById(settingsSheet.getRange("E13").getValue());
+const meetingOfficerSheet   = meetingSpreadsheet.getSheetById(settingsSheet.getRange("F13").getValue());
 const attendanceSheets = [meetingFreshmanSheet, meetingSophomoreSheet, meetingJuniorSheet, meetingSeniorSheet, meetingOfficerSheet];
 
-const attendanceStartRow = mohSettings.getRange("A15").getValue();       // starting row of names
-const meetingTitleRow = mohSettings.getRange("B15").getValue();          // first row of the merged title cell
-const meetingTitleRowSpan = mohSettings.getRange("C15").getValue();      // # of rows the title spans
-const meetingOfficerStartCol = mohSettings.getRange("D15").getValue();   // starting column of officer names
+const attendanceStartRow = settingsSheet.getRange("A15").getValue();       // starting row of names
+const meetingTitleRow = settingsSheet.getRange("B15").getValue();          // first row of the merged title cell
+const meetingTitleRowSpan = settingsSheet.getRange("C15").getValue();      // # of rows the title spans
+const meetingOfficerStartCol = settingsSheet.getRange("D15").getValue();   // starting column of officer names
 
-const attendanceInputSheet = mohFunction.getSheetById(1122725972); // sheet where attendees are entered
+const attendanceInputSheet = functionSpreadsheet.getSheetById(1122725972); // sheet where attendees are entered
 const attendanceInputStartRow = 2;
 
 /*
@@ -57,7 +57,7 @@ function manuealAttend() {
   }
 
   console.log("Starting to process names...");
-  var names = getData(attendanceInputSheet, attendanceInputStartRow, 1, 0, 2);
+  var names = readCleanNames(attendanceInputSheet, attendanceInputStartRow, 1, 0, 2);
   var grades = attendanceInputSheet.getRange(attendanceInputStartRow,3,attendanceInputSheet.getLastRow(),1).getValues();
 
   console.log("Found " + names.length + " names to process");
@@ -84,27 +84,27 @@ function manuealAttend() {
 
     switch (grades[i][0].toString().toLowerCase()) {
       case "freshman":
-        if (freshmanIndex == null) freshmanIndex = buildNameIndex(getData(meetingFreshmanSheet, attendanceStartRow, 1, 1, 3));
+        if (freshmanIndex == null) freshmanIndex = buildNameIndex(readCleanNames(meetingFreshmanSheet, attendanceStartRow, 1, 1, 3));
         nameIndex = freshmanIndex;
         sheetName = "Freshmen (9th)";
         break;
       case "sophomore":
-        if (sophomoreIndex == null) sophomoreIndex = buildNameIndex(getData(meetingSophomoreSheet, attendanceStartRow, 1, 1, 3));
+        if (sophomoreIndex == null) sophomoreIndex = buildNameIndex(readCleanNames(meetingSophomoreSheet, attendanceStartRow, 1, 1, 3));
         nameIndex = sophomoreIndex;
         sheetName = "Sophomores (10th)";
         break;
       case "junior":
-        if (juniorIndex == null) juniorIndex = buildNameIndex(getData(meetingJuniorSheet, attendanceStartRow, 1, 1, 3));
+        if (juniorIndex == null) juniorIndex = buildNameIndex(readCleanNames(meetingJuniorSheet, attendanceStartRow, 1, 1, 3));
         nameIndex = juniorIndex;
         sheetName = "Juniors (11th)";
         break;
       case "senior":
-        if (seniorIndex == null) seniorIndex = buildNameIndex(getData(meetingSeniorSheet, attendanceStartRow, 1, 1, 3));
+        if (seniorIndex == null) seniorIndex = buildNameIndex(readCleanNames(meetingSeniorSheet, attendanceStartRow, 1, 1, 3));
         nameIndex = seniorIndex;
         sheetName = "Seniors (12th)";
         break;
       case "officer":
-        if (officerIndex == null) officerIndex = buildNameIndex(getData(meetingOfficerSheet, attendanceStartRow, meetingOfficerStartCol, 1, 1));
+        if (officerIndex == null) officerIndex = buildNameIndex(readCleanNames(meetingOfficerSheet, attendanceStartRow, meetingOfficerStartCol, 1, 1));
         nameIndex = officerIndex;
         sheetName = "Officers";
         break;
@@ -119,9 +119,9 @@ function manuealAttend() {
     if (rosterRow != -1) {
       checkboxBatch[sheetName].rows.push(rosterRow + attendanceStartRow);
       checkboxBatch[sheetName].column = newColumnBySheet[sheetName];
-      rowColors[i] = [foundPplColour, foundPplColour, foundPplColour, foundPplColour];         // #b7e1cd
+      rowColors[i] = [foundColor, foundColor, foundColor, foundColor];         // #b7e1cd
     } else {
-      rowColors[i] = [didntFindPplColor, didntFindPplColor, didntFindPplColor, didntFindPplColor]; // #ea9999
+      rowColors[i] = [notFoundColor, notFoundColor, notFoundColor, notFoundColor]; // #ea9999
       console.log("NOT FOUND: " + name);
     }
   }
@@ -193,7 +193,7 @@ function manuealAttend() {
 
   // Process names
   console.log("Starting to process names...");
-  var allNames = getData(generalDataSheet, generalDataSheetStartingRow, 1, 0, 2);
+  var allNames = readCleanNames(generalDataSheet, generalDataSheetStartingRow, 1, 0, 2);
   var gradeArray = generalDataSheet.getRange(generalDataSheetStartingRow,3,generalDataSheet.getLastRow(),1).getValues();
   
   console.log("Found " + allNames.length + " names to process");
@@ -205,31 +205,31 @@ function manuealAttend() {
     
     switch (gradeArray[i][0].toString().toLowerCase()) {
       case "freshman":
-        if (frAttend == null) frAttend = getData(gMeetingSheetF, 8, 1, 1, 3);
+        if (frAttend == null) frAttend = readCleanNames(gMeetingSheetF, 8, 1, 1, 3);
         targetSheet = gMeetingSheetF;
         targetColumn = sheetColumns["Freshmen (9th)"]; // Use stored column
         nameTable = frAttend;
         break;
       case "sophomore":
-        if (spAttend == null) spAttend = getData(gMeetingSheetSoph, 8, 1, 1, 3);
+        if (spAttend == null) spAttend = readCleanNames(gMeetingSheetSoph, 8, 1, 1, 3);
         targetSheet = gMeetingSheetSoph;
         targetColumn = sheetColumns["Sophomores (10th)"];
         nameTable = spAttend;
         break;
       case "junior":
-        if (juAttend == null) juAttend = getData(gMeetingSheetJ, 8, 1, 1, 3);
+        if (juAttend == null) juAttend = readCleanNames(gMeetingSheetJ, 8, 1, 1, 3);
         targetSheet = gMeetingSheetJ;
         targetColumn = sheetColumns["Juniors (11th)"];
         nameTable = juAttend;
         break;
       case "senior":
-        if (snAttend == null) snAttend = getData(gMeetingSheetS, 8, 1, 1, 3);
+        if (snAttend == null) snAttend = readCleanNames(gMeetingSheetS, 8, 1, 1, 3);
         targetSheet = gMeetingSheetS;
         targetColumn = sheetColumns["Seniors (12th)"];
         nameTable = snAttend;
         break;
       case "officer": // ADDED OFFICER CASE
-        if (ofAttend == null) ofAttend = getData(gMeetingSheetOf, 8, 1, 1, 3);
+        if (ofAttend == null) ofAttend = readCleanNames(gMeetingSheetOf, 8, 1, 1, 3);
         targetSheet = gMeetingSheetOf;
         targetColumn = sheetColumns["Officers"];
         nameTable = ofAttend;

@@ -1,4 +1,4 @@
-const manualHoursSheet = mohFunction.getSheetById(305205063); // sheet where hours are entered by hand
+const manualHoursSheet = functionSpreadsheet.getSheetById(305205063); // sheet where hours are entered by hand
 const manualHoursStartRow = 2;
 const warningColor = "#ffe599";
 
@@ -7,9 +7,9 @@ const warningColor = "#ffe599";
 // Returns the column number of the newly inserted event column.
 function insertEventColumn(hourSheet, eventDate, eventName) {
   var lastColumnBefore = hourSheet.getMaxColumns();
-  var trailingColumns = (hourSheet == ofSheet)
-    ? mohSettings.getRange("C9").getValue()
-    : mohSettings.getRange("B9").getValue();
+  var trailingColumns = (hourSheet == officerHourSheet)
+    ? settingsSheet.getRange("C9").getValue()
+    : settingsSheet.getRange("B9").getValue();
 
   var insertAt = lastColumnBefore - trailingColumns + 1;
 
@@ -24,13 +24,13 @@ function insertEventColumn(hourSheet, eventDate, eventName) {
   var newColumn = hourSheet.getMaxColumns() - trailingColumns;
 
   var headerRange = hourSheet.getRange(
-    mohSettings.getRange("E9").getValue(),
+    settingsSheet.getRange("E9").getValue(),
     newColumn,
-    mohSettings.getRange("F9").getValue()
+    settingsSheet.getRange("F9").getValue()
   ).merge();
   headerRange.setValue(eventName);
 
-  var dateRow = mohSettings.getRange("D9").getValue();
+  var dateRow = settingsSheet.getRange("D9").getValue();
   var dateCell = hourSheet.getRange(dateRow, newColumn);
   dateCell.setValue(eventDate);
   dateCell.setNumberFormat("m/d");
@@ -41,7 +41,7 @@ function insertEventColumn(hourSheet, eventDate, eventName) {
 /*
  * PERFORMANCE NOTES (manuealHour / recordHours)
  * ---------------------------------------------
- * 1. O(1) name lookups: each roster returned by getData() is converted once into
+ * 1. O(1) name lookups: each roster returned by readCleanNames() is converted once into
  *    a Map { cleanedName -> rosterRow } via buildNameIndex(). The old per-person
  *    findIndex() scan (O(N*M) overall) is now O(N + M).
  * 2. Batched writes: no Spreadsheet API calls happen inside the name loop.
@@ -92,7 +92,7 @@ function manuealHour() {
 
   // Name -> roster row lookups. Grade rosters are only read if someone in that grade appears.
   var freshmanIndex, sophomoreIndex, juniorIndex, seniorIndex;
-  var officerIndex = buildNameIndex(getData(ofSheet, peopleSheetStartingRow, officerStartingCol, 1, 3));
+  var officerIndex = buildNameIndex(readCleanNames(officerHourSheet, peopleSheetStartingRow, officerNameCol, 1, 3));
 
   var [eventDate, eventName] = manualHoursSheet.getRange(7, 6, 2).getValues().flat();
 
@@ -100,13 +100,13 @@ function manuealHour() {
   var newColumns = hourSheets.map(sheet => insertEventColumn(sheet, eventDate, eventName));
 
   // Per-sheet hour buffers: { sheet, column, hoursByRow: { sheetRow: hours } }
-  var freshmanHours  = { sheet: freshSheet,  column: newColumns[0], hoursByRow: {} };
-  var sophomoreHours = { sheet: sophSheet,   column: newColumns[1], hoursByRow: {} };
-  var juniorHours    = { sheet: juniorSheet, column: newColumns[2], hoursByRow: {} };
-  var seniorHours    = { sheet: seniorSheet, column: newColumns[3], hoursByRow: {} };
-  var officerHours   = { sheet: ofSheet,     column: newColumns[4], hoursByRow: {} };
+  var freshmanHours  = { sheet: freshmanHourSheet,  column: newColumns[0], hoursByRow: {} };
+  var sophomoreHours = { sheet: sophomoreHourSheet, column: newColumns[1], hoursByRow: {} };
+  var juniorHours    = { sheet: juniorHourSheet,    column: newColumns[2], hoursByRow: {} };
+  var seniorHours    = { sheet: seniorHourSheet,    column: newColumns[3], hoursByRow: {} };
+  var officerHours   = { sheet: officerHourSheet,   column: newColumns[4], hoursByRow: {} };
 
-  var names = getData(manualHoursSheet, manualHoursStartRow, 1, 0, 2);
+  var names = readCleanNames(manualHoursSheet, manualHoursStartRow, 1, 0, 2);
   // Columns C (grade) and D (hours) for every entry row.
   var gradesAndHours = manualHoursSheet.getRange(manualHoursStartRow, 3, manualHoursSheet.getLastRow(), 2).getValues();
 
@@ -137,19 +137,19 @@ function manuealHour() {
 
     switch (gradesAndHours[i][0].toString().toLowerCase()) {
       case "freshman":
-        if (freshmanIndex == null) freshmanIndex = buildNameIndex(getData(freshSheet, peopleSheetStartingRow, 1, 1, 3));
+        if (freshmanIndex == null) freshmanIndex = buildNameIndex(readCleanNames(freshmanHourSheet, peopleSheetStartingRow, 1, 1, 3));
         recordHours(i, freshmanIndex, name, hours, freshmanHours, rowColors);
         break;
       case "sophomore":
-        if (sophomoreIndex == null) sophomoreIndex = buildNameIndex(getData(sophSheet, peopleSheetStartingRow, 1, 1, 3));
+        if (sophomoreIndex == null) sophomoreIndex = buildNameIndex(readCleanNames(sophomoreHourSheet, peopleSheetStartingRow, 1, 1, 3));
         recordHours(i, sophomoreIndex, name, hours, sophomoreHours, rowColors);
         break;
       case "junior":
-        if (juniorIndex == null) juniorIndex = buildNameIndex(getData(juniorSheet, peopleSheetStartingRow, 1, 1, 3));
+        if (juniorIndex == null) juniorIndex = buildNameIndex(readCleanNames(juniorHourSheet, peopleSheetStartingRow, 1, 1, 3));
         recordHours(i, juniorIndex, name, hours, juniorHours, rowColors);
         break;
       case "senior":
-        if (seniorIndex == null) seniorIndex = buildNameIndex(getData(seniorSheet, peopleSheetStartingRow, 1, 1, 3));
+        if (seniorIndex == null) seniorIndex = buildNameIndex(readCleanNames(seniorHourSheet, peopleSheetStartingRow, 1, 1, 3));
         recordHours(i, seniorIndex, name, hours, seniorHours, rowColors);
         break;
       default:
@@ -181,7 +181,7 @@ function manuealHour() {
 // calling the Spreadsheet API. Returns true if the person was found.
 function recordHours(entryRow, nameIndex, name, hours, hourBuffer, rowColors) {
   const rosterRow = nameIndex.has(name) ? nameIndex.get(name) : -1;
-  const color = rosterRow == -1 ? didntFindPplColor : foundPplColour;
+  const color = rosterRow == -1 ? notFoundColor : foundColor;
   for (let col = 0; col < 4; col++) rowColors[entryRow][col] = color;
   if (rosterRow == -1) return false;
   hourBuffer.hoursByRow[rosterRow + peopleSheetStartingRow] = hours;
@@ -191,8 +191,8 @@ function recordHours(entryRow, nameIndex, name, hours, hourBuffer, rowColors) {
 //picture buttons
 // Settings cells hold [pickRandomly, currentPictureIndex].
 function button() {
-  var pictures = mohFunctionData.getDrawings()
-  var [pickRandomly, currentPicture] = mohFunctionData.getRange(4,19,2).getValues().flat();
+  var pictures = eventDataSheet.getDrawings()
+  var [pickRandomly, currentPicture] = eventDataSheet.getRange(4,19,2).getValues().flat();
   pictures[currentPicture].setWidth(1)
   pictures[currentPicture].setHeight(1)
 
@@ -202,12 +202,12 @@ function button() {
   if (pickRandomly == true) {
     var randomPicture = randomInt(0, pictures.length - 1)
     nextPicture = pictures[randomPicture]
-    mohFunctionData.getRange(5,19).setValue(randomPicture)
+    eventDataSheet.getRange(5,19).setValue(randomPicture)
   } else {
     nextPicture = pictures[currentPicture+1]
-    mohFunctionData.getRange(5,19).setValue(currentPicture+1)
+    eventDataSheet.getRange(5,19).setValue(currentPicture+1)
     if (currentPicture+2 == pictures.length) {
-      mohFunctionData.getRange(4,19).setValue(true)
+      eventDataSheet.getRange(4,19).setValue(true)
     }
   }
 
