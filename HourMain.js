@@ -9,14 +9,75 @@ const seniorSheet = moh.getSheetById(mohSettings.getRange("E7").getValue()); // 
 const ofSheet = moh.getSheetById(mohSettings.getRange("F7").getValue()); // Officers page of Master of Hours 
 const officerStartingCol = mohSettings.getRange("A11").getValue(); // officer starting column
 
-
 const hourSheets = [freshSheet, sophSheet, juniorSheet, seniorSheet, ofSheet];
 const hourSheetColumnDataPosition = [1, 4, 7, 10, 13];
-const peopleSheetStartingRow = mohSettings.getRange("A9").getValue();
 const dataSheetStartingRow = 2;
 
 const foundPplColour = "#b7e1cd";
 const didntFindPplColor = "#ea9999";
+
+/**
+ * Dynamically finds the starting row and column(s) for names in a sheet
+ * by searching for header cells like "First Name", "First", "Last Name", "Last", or "Name".
+ * Returns an object: { startRow, firstCol, lastCol }
+ */
+function getNameStartInfo(sheet, searchCol) {
+  var defaultCol = searchCol || 1;
+  var maxSearchRows = Math.min(sheet.getLastRow(), 20);
+  if (maxSearchRows < 1) {
+    return { startRow: 2, firstCol: defaultCol, lastCol: defaultCol + 1 };
+  }
+
+  var searchRange = sheet.getRange(1, 1, maxSearchRows, Math.min(sheet.getLastColumn(), 15));
+  var values = searchRange.getValues();
+
+  var foundHeaderRow = -1;
+  var foundFirstCol = -1;
+  var foundLastCol = -1;
+
+  for (let r = 0; r < values.length; r++) {
+    for (let c = 0; c < values[r].length; c++) {
+      let cellText = (values[r][c] || "").toString().trim().toLowerCase();
+      
+      if (cellText === "first name" || cellText === "first" || cellText === "first name / last name" || cellText === "name" || cellText === "first/last name") {
+        foundHeaderRow = r + 1; // 1-based row
+        foundFirstCol = c + 1;  // 1-based col
+        
+        if (c + 1 < values[r].length) {
+          let nextCell = (values[r][c + 1] || "").toString().trim().toLowerCase();
+          if (nextCell === "last name" || nextCell === "last" || nextCell === "") {
+            foundLastCol = c + 2;
+          }
+        }
+        break;
+      }
+    }
+    if (foundHeaderRow !== -1) break;
+  }
+
+  // Fallback if no explicit "First Name" header cell is found
+  if (foundHeaderRow === -1) {
+    var fallbackRow = 2;
+    if (sheet.getLastRow() >= 5) {
+      let row1Val = (sheet.getRange(1, defaultCol).getValue() || "").toString();
+      let row5Val = (sheet.getRange(5, defaultCol).getValue() || "").toString();
+      if (row1Val !== "" && row5Val !== "") {
+        fallbackRow = 5;
+      }
+    }
+    return { startRow: fallbackRow, firstCol: defaultCol, lastCol: defaultCol + 1 };
+  }
+
+  return {
+    startRow: foundHeaderRow + 1, // Names start on the row directly UNDER "First Name"
+    firstCol: foundFirstCol,
+    lastCol: foundLastCol !== -1 ? foundLastCol : foundFirstCol + 1
+  };
+}
+
+function getNameStartRow(sheet, searchCol) {
+  return getNameStartInfo(sheet, searchCol).startRow;
+}
 
 function main() {
   console.log("=== MAIN STARTED ===");
@@ -45,6 +106,10 @@ function main() {
 }
 
 function getData(sheet, startingRow, startingColumn, lastRowOffset, isOneColumn) {
+  if (!startingRow || startingRow <= 0) {
+    startingRow = getNameStartRow(sheet, startingColumn);
+  }
+  
   console.log(`\n🔍 [getData ENTER] Sheet: "${sheet.getName()}"`);
   console.log(`   Parameters: startingRow=${startingRow}, startingColumn=${startingColumn}, lastRowOffset=${lastRowOffset}, isOneColumn=${isOneColumn}`);
   
@@ -90,7 +155,7 @@ function getData(sheet, startingRow, startingColumn, lastRowOffset, isOneColumn)
     console.log(`   Processing mode: Three columns (col1 + col3)`);
     for (let i = 0; i < rawData.length; i++) {
       let val1 = (rawData[i][0] || "").toString();
-      let val3 = (rawData[i][2] || "").toString(); // if merged like in 2025-2026, moh, then use 2. else use 1
+      let val3 = (rawData[i][2] || "").toString();
       let original = val1 + " + " + val3;
       let bob = val1.toLowerCase().replace(/\([^)]*\)/g, "") + 
                 val3.toLowerCase().replace(/\([^)]*\)/g, "");
@@ -101,7 +166,6 @@ function getData(sheet, startingRow, startingColumn, lastRowOffset, isOneColumn)
   }
   
   console.log(`   ✅ Processed ${newData.length} items`);
-
   console.log(`🔚 [getData EXIT]\n`);
   return newData;
 }
@@ -116,12 +180,16 @@ function comparer(referenceSheet, dataSheetPosition) {
   if (referenceSheet == ofSheet) {
     isOfficerSheet = officerStartingCol;
     amtColumns = 1;
-    console.log(`   ℹ️ Officer sheet detected: startingColumn=2, amtColumns=1`);
+    console.log(`   ℹ️ Officer sheet detected: startingColumn=${officerStartingCol}, amtColumns=1`);
   }
   
+  // Dynamically locate where names start under "First Name"
+  var refStartRow = getNameStartRow(referenceSheet, isOfficerSheet);
+  console.log(`   ℹ️ Dynamic name start row for reference sheet "${referenceSheet.getName()}": Row ${refStartRow}`);
+
   // Get reference data
   console.log(`\n📚 Getting REFERENCE data from "${referenceSheet.getName()}"...`);
-  var referenceData = getData(referenceSheet, peopleSheetStartingRow, isOfficerSheet, 1, amtColumns);
+  var referenceData = getData(referenceSheet, refStartRow, isOfficerSheet, 1, amtColumns);
   console.log(`   Reference data count: ${referenceData.length}`);
   
   // Create lookup object
@@ -130,16 +198,33 @@ function comparer(referenceSheet, dataSheetPosition) {
   for (let j = 0; j < referenceData.length; j++) {
     referenceLookup[referenceData[j]] = j;
   }
+
+  // For Officer sheet, also populate first-name aliases from raw roster entries
+  if (referenceSheet == ofSheet && referenceData.length > 0) {
+    var rawOfficerRange = referenceSheet.getRange(refStartRow, isOfficerSheet, referenceData.length, 1).getValues();
+    for (let j = 0; j < rawOfficerRange.length; j++) {
+      let rawStr = (rawOfficerRange[j][0] || "").toString().trim();
+      if (rawStr) {
+        let firstNameOnly = rawStr.split(/\s+/)[0].toLowerCase().replace(/\([^)]*\)/g, "").replace(/[\W_]+/g, "");
+        if (firstNameOnly && referenceLookup[firstNameOnly] === undefined) {
+          referenceLookup[firstNameOnly] = j;
+          console.log(`   ℹ️ Officer first-name alias added: "${firstNameOnly}" -> index ${j}`);
+        }
+      }
+    }
+  }
+
   console.log(`   Lookup object created with ${Object.keys(referenceLookup).length} entries`);
   
-  // Get lookup data
-  console.log(`\n📋 Getting LOOKUP data from main data sheet at position ${dataSheetPosition}...`);
-  var lookupData = getData(mohFunctionData, dataSheetStartingRow, dataSheetPosition, 0, 2);
+  // Get lookup data dynamically
+  var dataStartRow = getNameStartRow(mohFunctionData, dataSheetPosition);
+  console.log(`\n📋 Getting LOOKUP data from main data sheet at position ${dataSheetPosition} starting at row ${dataStartRow}...`);
+  var lookupData = getData(mohFunctionData, dataStartRow, dataSheetPosition, 0, 2);
   console.log(`   Lookup data count: ${lookupData.length}`);
   
   // Batch get reduction values
   console.log(`\n📊 Getting reduction values from column ${dataSheetPosition+2}...`);
-  var reductionRange = mohFunctionData.getRange(dataSheetStartingRow, dataSheetPosition+2, lookupData.length, 1);
+  var reductionRange = mohFunctionData.getRange(dataStartRow, dataSheetPosition+2, lookupData.length, 1);
   var reductionValues = reductionRange.getValues().flat();
   console.log(`   Reduction values count: ${reductionValues.length}`);
   if (reductionValues.length > 0) {
@@ -178,7 +263,7 @@ function comparer(referenceSheet, dataSheetPosition) {
       noMatchCount++;
       validRowColors.push([didntFindPplColor]);
       if (noMatchCount <= 5) {
-        console.log(`   ❌ Row ${validRows[i] + dataSheetStartingRow}: "${name}" NOT FOUND in reference`);
+        console.log(`   ❌ Row ${validRows[i] + dataStartRow}: "${name}" NOT FOUND in reference`);
       }
     } else {
       matchCount++;
@@ -186,7 +271,7 @@ function comparer(referenceSheet, dataSheetPosition) {
       getHrReduce.push(validReductionValues[i]);
       validRowColors.push([foundPplColour]);
       if (matchCount <= 5) {
-        console.log(`   ✅ Row ${validRows[i] + dataSheetStartingRow}: "${name}" FOUND at index ${pp} (reduction: ${validReductionValues[i]})`);
+        console.log(`   ✅ Row ${validRows[i] + dataStartRow}: "${name}" FOUND at index ${pp} (reduction: ${validReductionValues[i]})`);
       }
     }
   }
@@ -215,7 +300,7 @@ function comparer(referenceSheet, dataSheetPosition) {
       
       var endIdx = i;
       var batchLength = endIdx - startIdx + 1;
-      var startRow = validRows[startIdx] + dataSheetStartingRow;
+      var startRow = validRows[startIdx] + dataStartRow;
       
       console.log(`   Batch ${++batchCount}: Coloring rows ${startRow}-${startRow + batchLength - 1} (${batchLength} rows)`);
       
@@ -228,16 +313,21 @@ function comparer(referenceSheet, dataSheetPosition) {
   }
   
   console.log(`\n📞 Calling grantHour with ${onBothIndexs.length} people...`);
-  grantHour(onBothIndexs, getHrReduce, referenceSheet);
+  grantHour(onBothIndexs, getHrReduce, referenceSheet, refStartRow);
   
   console.log(`========== 🔚 COMPARER END ==========\n`);
 }
 
-function grantHour(indexArray, hrReductionArray, hourSheet) { //CP VIBE CODE
+function grantHour(indexArray, hrReductionArray, hourSheet, refStartRow) {
   console.log(`\n=== GRANTHOUR for ${hourSheet.getName()} ===`);
   console.log(`indexArray:`, indexArray);
   console.log(`hrReductionArray:`, hrReductionArray);
   
+  if (!refStartRow) {
+    let isOfficer = (hourSheet == ofSheet);
+    refStartRow = getNameStartRow(hourSheet, isOfficer ? officerStartingCol : 1);
+  }
+
   var beforeLastCol = hourSheet.getMaxColumns();
   console.log(`BEFORE insertion - Last column: ${beforeLastCol}`);
   var currentColumn = 0;
@@ -251,34 +341,26 @@ function grantHour(indexArray, hrReductionArray, hourSheet) { //CP VIBE CODE
     console.log(`Regular offset (B9): ${offset}`);
   }
   
-// Insert the column safely without going out of bounds
   var targetColumn = beforeLastCol - offset + 1;
 
-  if (offset === 0) 
-  {
+  if (offset === 0) {
     hourSheet.insertColumnAfter(beforeLastCol);
-  }
-  else if (targetColumn >= hourSheet.getMaxColumns()) {
-  // If we are pushing past the absolute edge, append it directly to the end
+  } else if (targetColumn >= hourSheet.getMaxColumns()) {
     hourSheet.insertColumns(hourSheet.getMaxColumns(), 1);
   } else {
-  // Otherwise, use your standard relative insertion
     hourSheet.insertColumnBefore(targetColumn);
   }
   
-  // After insertion, new column is at (lastColumn - offset)
   currentColumn = hourSheet.getMaxColumns() - offset;
   
   console.log(`New column inserted at: ${currentColumn}`);
   console.log(`Column ${currentColumn} is now between columns ${currentColumn-1} and ${currentColumn+1}`);
   
-  // Get all event data at once
   var eventData = mohFunctionData.getRange(dataSheetStartingRow, hourSheetColumnDataPosition[4]+3, 1, 3).getValues()[0];
   console.log(`eventData:`, eventData);
   
-  // Setup headers
   hourSheet.getRange(1, currentColumn, 2);
-  var headerRange = hourSheet.getRange(mohSettings.getRange("E9").getValue(), currentColumn, mohSettings.getRange("F9").getValue()).merge(); // at what # row does event name start? how many rows does it span?
+  var headerRange = hourSheet.getRange(mohSettings.getRange("E9").getValue(), currentColumn, mohSettings.getRange("F9").getValue()).merge();
   headerRange.setValue(eventData[2]);
   
   var dateRow = mohSettings.getRange("D9").getValue();
@@ -288,39 +370,34 @@ function grantHour(indexArray, hrReductionArray, hourSheet) { //CP VIBE CODE
   dateCell.setValue(eventData[1]);
   dateCell.setNumberFormat("m/d");
   
-  // Batch write all hour values at once
   if (indexArray.length > 0) {
     var rows = [];
     var values = [];
     
     for (let i = 0; i < indexArray.length; i++) {
-      var rowNum = indexArray[i] + peopleSheetStartingRow;
+      var rowNum = indexArray[i] + refStartRow;
       var hourValue = hrReductionArray[i] ? -2 : eventData[0];
       rows.push(rowNum);
       values.push([hourValue]);
       console.log(`Person ${i}: ref index ${indexArray[i]} → sheet row ${rowNum}, hour = ${hourValue}`);
     }
     
-    // Find the range that covers all rows
     var minRow = Math.min(...rows);
     var maxRow = Math.max(...rows);
     var rowCount = maxRow - minRow + 1;
     
     console.log(`Writing to rows ${minRow}-${maxRow} (${rowCount} rows total)`);
     
-    // Create a 2D array for all rows
     var allValues = new Array(rowCount);
     for (let i = 0; i < rowCount; i++) {
       allValues[i] = new Array(1).fill(null);
     }
     
-    // Place values at correct positions
     for (let i = 0; i < rows.length; i++) {
       allValues[rows[i] - minRow][0] = values[i][0];
       console.log(`  Placing ${values[i][0]} at offset ${rows[i] - minRow}`);
     }
     
-    // Batch update the entire column
     hourSheet.getRange(minRow, currentColumn, rowCount, 1).setValues(allValues);
     console.log(`✅ Wrote ${rows.length} values to column ${currentColumn}`);
   } else {
