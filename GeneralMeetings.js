@@ -1,114 +1,128 @@
-const gMeetingSS = SpreadsheetApp.openById(mohSettings.getRange("A13").getValue()); // General Meeting spreadsheet
-const gMeetingSheetF = gMeetingSS.getSheetById(mohSettings.getRange("B13").getValue());
-const gMeetingSheetSoph = gMeetingSS.getSheetById(mohSettings.getRange("C13").getValue());
-const gMeetingSheetJ = gMeetingSS.getSheetById(mohSettings.getRange("D13").getValue());
-const gMeetingSheetS = gMeetingSS.getSheetById(mohSettings.getRange("E13").getValue());
-const gMeetingSheetOf = gMeetingSS.getSheetById(mohSettings.getRange("F13").getValue());
-const attendanceSheets = [gMeetingSheetF, gMeetingSheetSoph, gMeetingSheetJ, gMeetingSheetS, gMeetingSheetOf];
+const meetingSpreadsheet = SpreadsheetApp.openById(mohSettings.getRange("A13").getValue()); // General Meeting spreadsheet
+const meetingFreshmanSheet  = meetingSpreadsheet.getSheetById(mohSettings.getRange("B13").getValue());
+const meetingSophomoreSheet = meetingSpreadsheet.getSheetById(mohSettings.getRange("C13").getValue());
+const meetingJuniorSheet    = meetingSpreadsheet.getSheetById(mohSettings.getRange("D13").getValue());
+const meetingSeniorSheet    = meetingSpreadsheet.getSheetById(mohSettings.getRange("E13").getValue());
+const meetingOfficerSheet   = meetingSpreadsheet.getSheetById(mohSettings.getRange("F13").getValue());
+const attendanceSheets = [meetingFreshmanSheet, meetingSophomoreSheet, meetingJuniorSheet, meetingSeniorSheet, meetingOfficerSheet];
 
-const attendanceStartingRow = mohSettings.getRange("A15").getValue();   // starting row of names
-const meetingDateRow = mohSettings.getRange("B15").getValue();          // row of meeting date (title merge start)
-const meetingDateRowSpan = mohSettings.getRange("C15").getValue();      // # of rows date spans
-const gMeetingOfficerStartingCol = mohSettings.getRange("D15").getValue(); // starting column of officers
+const attendanceStartRow = mohSettings.getRange("A15").getValue();       // starting row of names
+const meetingTitleRow = mohSettings.getRange("B15").getValue();          // first row of the merged title cell
+const meetingTitleRowSpan = mohSettings.getRange("C15").getValue();      // # of rows the title spans
+const meetingOfficerStartCol = mohSettings.getRange("D15").getValue();   // starting column of officer names
 
-const generalDataSheet = mohFunction.getSheetById(1122725972);
-const generalDataSheetStartingRow = 2;
+const attendanceInputSheet = mohFunction.getSheetById(1122725972); // sheet where attendees are entered
+const attendanceInputStartRow = 2;
 
+/*
+ * PERFORMANCE NOTES (manuealAttend)
+ * ---------------------------------
+ * 1. O(1) name lookups: each attendance roster is converted once into a Map
+ *    { cleanedName -> rosterRow } with buildNameIndex() (defined in
+ *    GiveHourList.js, shared global scope). This replaces the per-person
+ *    findIndex() scan: O(N*M) -> O(N + M).
+ * 2. Batched colors: row colors go into a 2D buffer (seeded from
+ *    getBackgrounds() so skipped rows keep their color) and are written with
+ *    ONE setBackgrounds() call instead of one setBackground() per row.
+ * 3. Checkbox batching (one insertCheckboxes() + setValues() per sheet) is
+ *    unchanged.
+ */
 function manuealAttend() {
   console.log("Function started - running without trigger check");
 
-  var frAttend, spAttend, juAttend, snAttend, ofAttend;
-  var sheetColumns = {};
+  // Name -> roster row lookups, built only when someone from that sheet appears.
+  var freshmanIndex, sophomoreIndex, juniorIndex, seniorIndex, officerIndex;
+  var newColumnBySheet = {};
 
-  var attendanceData = generalDataSheet.getRange(7,6,2).getValues().flat();
-  console.log("Attendance Data:", attendanceData);
+  var [meetingTitle, meetingDate] = attendanceInputSheet.getRange(7,6,2).getValues().flat();
+  console.log("Meeting info:", meetingTitle, meetingDate);
 
   for (let i = 0; i < attendanceSheets.length; i++){
     var sheet = attendanceSheets[i];
     console.log("Processing sheet: " + sheet.getName());
 
     sheet.insertColumnAfter(sheet.getLastColumn());
-    var currentColumn = sheet.getLastColumn();
-    sheetColumns[sheet.getName()] = currentColumn;
+    var newColumn = sheet.getLastColumn();
+    newColumnBySheet[sheet.getName()] = newColumn;
 
-    console.log("Inserted column at: " + currentColumn);
+    console.log("Inserted column at: " + newColumn);
 
-    var titleRange = sheet.getRange(meetingDateRow, currentColumn, meetingDateRowSpan, 1);
+    var titleRange = sheet.getRange(meetingTitleRow, newColumn, meetingTitleRowSpan, 1);
     titleRange.merge();
-    titleRange.setValue(attendanceData[0]);
+    titleRange.setValue(meetingTitle);
     titleRange.setNumberFormat("m/d");
 
-    var datePut = sheet.getRange(meetingDateRow + meetingDateRowSpan, currentColumn);
-    datePut.setValue(attendanceData[1]);
+    var dateCell = sheet.getRange(meetingTitleRow + meetingTitleRowSpan, newColumn);
+    dateCell.setValue(meetingDate);
   }
 
   console.log("Starting to process names...");
-  var allNames = getData(generalDataSheet, generalDataSheetStartingRow, 1, 0, 2);
-  var gradeArray = generalDataSheet.getRange(generalDataSheetStartingRow,3,generalDataSheet.getLastRow(),1).getValues();
+  var names = getData(attendanceInputSheet, attendanceInputStartRow, 1, 0, 2);
+  var grades = attendanceInputSheet.getRange(attendanceInputStartRow,3,attendanceInputSheet.getLastRow(),1).getValues();
 
-  console.log("Found " + allNames.length + " names to process");
+  console.log("Found " + names.length + " names to process");
 
   var checkboxBatch = {
-    "Freshmen (9th)": { sheet: gMeetingSheetF, rows: [], column: null },
-    "Sophomores (10th)": { sheet: gMeetingSheetSoph, rows: [], column: null },
-    "Juniors (11th)": { sheet: gMeetingSheetJ, rows: [], column: null },
-    "Seniors (12th)": { sheet: gMeetingSheetS, rows: [], column: null },
-    "Officers": { sheet: gMeetingSheetOf, rows: [], column: null }
+    "Freshmen (9th)":    { sheet: meetingFreshmanSheet,  rows: [], column: null },
+    "Sophomores (10th)": { sheet: meetingSophomoreSheet, rows: [], column: null },
+    "Juniors (11th)":    { sheet: meetingJuniorSheet,    rows: [], column: null },
+    "Seniors (12th)":    { sheet: meetingSeniorSheet,    rows: [], column: null },
+    "Officers":          { sheet: meetingOfficerSheet,   rows: [], column: null }
   };
 
-  var rowColors = new Array(allNames.length).fill(null);
+  // One read of current colors; matched/unmatched rows are overwritten in memory.
+  var rowColors = names.length > 0
+    ? attendanceInputSheet.getRange(attendanceInputStartRow, 1, names.length, 4).getBackgrounds()
+    : [];
 
-  for (let i = 0; i < allNames.length; i++) {
-    if (allNames[i] == "") continue;
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i];
+    if (name == "") continue;
 
-    var targetColumn, nameTable;
+    var nameIndex;
     var sheetName = "";
 
-    switch (gradeArray[i][0].toString().toLowerCase()) {
+    switch (grades[i][0].toString().toLowerCase()) {
       case "freshman":
-        if (frAttend == null) frAttend = getData(gMeetingSheetF, attendanceStartingRow, 1, 1, 3);
-        targetColumn = sheetColumns["Freshmen (9th)"];
-        nameTable = frAttend;
+        if (freshmanIndex == null) freshmanIndex = buildNameIndex(getData(meetingFreshmanSheet, attendanceStartRow, 1, 1, 3));
+        nameIndex = freshmanIndex;
         sheetName = "Freshmen (9th)";
         break;
       case "sophomore":
-        if (spAttend == null) spAttend = getData(gMeetingSheetSoph, attendanceStartingRow, 1, 1, 3);
-        targetColumn = sheetColumns["Sophomores (10th)"];
-        nameTable = spAttend;
+        if (sophomoreIndex == null) sophomoreIndex = buildNameIndex(getData(meetingSophomoreSheet, attendanceStartRow, 1, 1, 3));
+        nameIndex = sophomoreIndex;
         sheetName = "Sophomores (10th)";
         break;
       case "junior":
-        if (juAttend == null) juAttend = getData(gMeetingSheetJ, attendanceStartingRow, 1, 1, 3);
-        targetColumn = sheetColumns["Juniors (11th)"];
-        nameTable = juAttend;
+        if (juniorIndex == null) juniorIndex = buildNameIndex(getData(meetingJuniorSheet, attendanceStartRow, 1, 1, 3));
+        nameIndex = juniorIndex;
         sheetName = "Juniors (11th)";
         break;
       case "senior":
-        if (snAttend == null) snAttend = getData(gMeetingSheetS, attendanceStartingRow, 1, 1, 3);
-        targetColumn = sheetColumns["Seniors (12th)"];
-        nameTable = snAttend;
+        if (seniorIndex == null) seniorIndex = buildNameIndex(getData(meetingSeniorSheet, attendanceStartRow, 1, 1, 3));
+        nameIndex = seniorIndex;
         sheetName = "Seniors (12th)";
         break;
       case "officer":
-        if (ofAttend == null) ofAttend = getData(gMeetingSheetOf, attendanceStartingRow, gMeetingOfficerStartingCol, 1, 1);
-        targetColumn = sheetColumns["Officers"];
-        nameTable = ofAttend;
+        if (officerIndex == null) officerIndex = buildNameIndex(getData(meetingOfficerSheet, attendanceStartRow, meetingOfficerStartCol, 1, 1));
+        nameIndex = officerIndex;
         sheetName = "Officers";
         break;
       default:
-        console.log("Unknown grade: " + gradeArray[i][0]);
+        console.log("Unknown grade: " + grades[i][0]);
         continue;
     }
 
-    let index = nameTable.findIndex(name => name == allNames[i]);
+    // O(1) Map lookup (was an O(M) findIndex scan).
+    let rosterRow = nameIndex.has(name) ? nameIndex.get(name) : -1;
 
-    if (index != -1) {
-      checkboxBatch[sheetName].rows.push(index + attendanceStartingRow);
-      checkboxBatch[sheetName].column = targetColumn;
-      rowColors[i] = "#b7e1cd";
+    if (rosterRow != -1) {
+      checkboxBatch[sheetName].rows.push(rosterRow + attendanceStartRow);
+      checkboxBatch[sheetName].column = newColumnBySheet[sheetName];
+      rowColors[i] = [foundPplColour, foundPplColour, foundPplColour, foundPplColour];         // #b7e1cd
     } else {
-      rowColors[i] = "#ea9999";
-      console.log("NOT FOUND: " + allNames[i]);
+      rowColors[i] = [didntFindPplColor, didntFindPplColor, didntFindPplColor, didntFindPplColor]; // #ea9999
+      console.log("NOT FOUND: " + name);
     }
   }
 
@@ -118,28 +132,27 @@ function manuealAttend() {
     let batch = checkboxBatch[sheetName];
     if (batch.rows.length === 0 || !batch.column) continue;
 
-    let minRow = Math.min(...batch.rows);
-    let maxRow = Math.max(...batch.rows);
-    let rowCount = maxRow - minRow + 1;
+    let firstRow = Math.min(...batch.rows);
+    let lastRow = Math.max(...batch.rows);
+    let rowCount = lastRow - firstRow + 1;
 
-    console.log(`${sheetName}: ${batch.rows.length} attendees across rows ${minRow}-${maxRow}`);
+    console.log(`${sheetName}: ${batch.rows.length} attendees across rows ${firstRow}-${lastRow}`);
 
-    let range = batch.sheet.getRange(minRow, batch.column, rowCount, 1);
-    range.insertCheckboxes();
+    let checkboxRange = batch.sheet.getRange(firstRow, batch.column, rowCount, 1);
+    checkboxRange.insertCheckboxes();
 
-    let values = new Array(rowCount).fill(false).map(() => [false]);
+    let checked = new Array(rowCount).fill(false).map(() => [false]);
     batch.rows.forEach(row => {
-      values[row - minRow][0] = true;
+      checked[row - firstRow][0] = true;
     });
 
-    range.setValues(values);
+    checkboxRange.setValues(checked);
   }
 
   console.log("Updating colors...");
-  for (let i = 0; i < rowColors.length; i++) {
-    if (rowColors[i] !== null) {
-      generalDataSheet.getRange(i + generalDataSheetStartingRow, 1, 1, 4).setBackground(rowColors[i]);
-    }
+  // Single setBackgrounds() call replaces one setBackground() per row.
+  if (names.length > 0) {
+    attendanceInputSheet.getRange(attendanceInputStartRow, 1, names.length, 4).setBackgrounds(rowColors);
   }
 
   console.log("Finished processing all names");
